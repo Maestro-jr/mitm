@@ -53,8 +53,8 @@ customer  --->  attacker (port 8000)  --->  bank (port 9000)
 ## Getting the code
 
 ```bash
-git clone <repository-url>
-cd <repository-folder>
+git clone https://github.com/Maestro-jr/mitm
+cd mitm
 ```
 
 You will need three terminals open in that folder, one for each program.
