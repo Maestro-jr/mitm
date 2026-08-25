@@ -4,10 +4,10 @@ A minimal, hands-on demonstration of a man-in-the-middle (MITM) attack, written
 in Python using only the standard library. It runs entirely on your own machine
 using local network sockets. Nothing leaves your computer.
 
-The demo has two passes. In the first pass an attacker sits between a customer
-and a bank, reads a money transfer, and secretly changes who the money goes to.
-In the second pass the customer encrypts the message first, and the same attack
-fails. That second pass is what the padlock (HTTPS) in your browser is doing.
+An attacker sits between a customer and a bank. When the customer sends a money
+transfer without encryption, the attacker reads it and secretly changes who the
+money goes to. When the customer encrypts the transfer, the same attack fails.
+That is what the padlock (HTTPS) in your browser is doing.
 
 ## The idea
 
@@ -25,9 +25,9 @@ Being in the middle gives the attacker two abilities:
 
 | File | Role |
 | --- | --- |
-| `bank.py` | The server. Receives a transfer order and confirms it. |
-| `mitm.py` | The attacker. Sits between the customer and the bank. |
-| `customer.py` | The client. Sends a transfer. Has an ENCRYPT switch. |
+| `bank.py` | The server. Receives a transfer and records the amount, receiver, and note. |
+| `mitm.py` | The attacker. Sits between the customer and the bank and tries to read and change every message. |
+| `customer.py` | The client. An interactive menu to make transfers and choose whether to encrypt. |
 | `labcrypto.py` | A tiny shared scrambler used to "encrypt" the message. |
 
 ## How the pieces connect
@@ -61,63 +61,62 @@ You will need three terminals open in that folder, one for each program.
 
 ## Running it
 
-### Pass 1: the attack succeeds (no encryption)
-
-Make sure the top of `customer.py` reads:
-
-```python
-ENCRYPT = False
-```
-
 Start the three programs in this order, one per terminal:
 
 ```bash
 python3 bank.py        # terminal 1: start the bank first
 python3 mitm.py        # terminal 2: start the attacker
-python3 customer.py    # terminal 3: send the transfer
+python3 customer.py    # terminal 3: the interactive customer
 ```
 
-Now compare the three terminals:
+The customer shows a menu:
 
-- The customer sent `TRANSFER 100 TO alice` and got back
-  `OK - transfer complete`. To the customer, everything looks fine.
-- The attacker printed the transfer in plain text and reported
-  `tampering SUCCEEDED`.
-- The bank recorded `TRANSFER 100 TO attacker`.
-
-The money went to the attacker, and the customer had no way to tell.
-
-### Pass 2: the attack fails (with encryption)
-
-Change one line at the top of `customer.py`:
-
-```python
-ENCRYPT = True
+```
+  1. Make a transfer
+  2. End session
 ```
 
-Do not change `mitm.py`. The attacker stays exactly the same. Run the customer
-again (you can leave the bank and attacker running, or restart all three):
+Choose `1` to make a transfer. You will be asked for four things:
 
-```bash
-python3 customer.py
-```
+- the amount,
+- the receiver name,
+- a message to attach (optional),
+- whether to encrypt the message (y/n).
 
-Compare the terminals again:
+After the transfer, the menu appears again so you can make another one. Choose
+`2` to end the customer program. The bank and the attacker keep running; stop
+them with Ctrl-C when you are done.
 
-- The attacker now sees a block of scrambled hex instead of readable text, and
-  reports `tampering FAILED`.
-- The bank records `TRANSFER 100 TO alice`. The correct person was paid.
+You do not edit any code to switch encryption on or off. You choose it at the
+prompt each time.
 
-The attacker did nothing different. The only change is that the customer
-scrambled the message before sending it, so the attacker could neither read it
-nor find anything to change.
+### What to observe
+
+Make one transfer with encryption OFF, then make the same transfer with
+encryption ON, and compare the three terminals.
+
+With encryption OFF:
+
+- The attacker prints your transfer in plain text and reports
+  `Tampering SUCCEEDED`.
+- The bank records the money going to `attacker`, not the person you chose.
+- Your own terminal shows a normal confirmation, so as the customer you cannot
+  tell anything went wrong.
+
+With encryption ON:
+
+- The attacker sees only scrambled hex and reports `Tampering FAILED`.
+- The bank records the money going to the receiver you actually chose.
+
+The attacker code is identical in both cases. The only thing that changed is that
+the customer encrypted the message.
 
 ## Why encryption stops the attack
 
 When the message is encrypted, the attacker in the middle sees only scrambled
-bytes. They cannot read the transfer, and their find-and-replace has nothing to
-match, so tampering does nothing. Only the bank, which shares the secret key,
-can turn the scrambled bytes back into a readable order.
+bytes. It cannot read the transfer, and it has nothing to match when it tries to
+change the receiver, so tampering does nothing. Only the bank, which shares the
+secret key, can turn the scrambled bytes back into a readable order.
 
 This is the core of what HTTPS gives you:
 
@@ -130,26 +129,28 @@ This is why you should never send passwords or other sensitive data over plain
 
 ## Things to try
 
-1. In Pass 1, change the amount or the recipient in `mitm.py` and watch the bank
-   carry out the modified order.
-2. In Pass 2, print the raw bytes the attacker receives and confirm the transfer
-   is not readable.
-3. Change `SECRET_KEY` in `labcrypto.py` on only one side (customer or bank) and
-   observe what the bank decodes when the keys do not match.
-4. Explain in your own words how a real attacker might get into the middle
+1. Send the same transfer with encryption off and then on, and compare what the
+   bank records each time.
+2. Read the attacker's output during an unencrypted transfer and notice that it
+   also sees the note you attached, not just the amount and receiver.
+3. In `mitm.py`, change the amount as well as the receiver, and watch the bank
+   carry out the fully rewritten order.
+4. Change `SECRET_KEY` in `labcrypto.py` on only one side and observe what the
+   bank decodes when the keys do not match.
+5. Explain in your own words how a real attacker might get into the middle
    position on a public network.
 
 ## Note on the encryption used
 
 `labcrypto.py` uses a simple XOR scrambler so the code stays short and readable.
-It is a teaching aid, not real encryption, and must never be used to protect
-real data. Real systems, including HTTPS, use vetted modern encryption. The
-concept it demonstrates (a shared secret makes the message unreadable to anyone
-in the middle) is the real one.
+It is a teaching aid, not real encryption, and must never be used to protect real
+data. Real systems, including HTTPS, use vetted modern encryption. The concept it
+demonstrates (a shared secret makes the message unreadable to anyone in the
+middle) is the real one.
 
 ## Scope and responsible use
 
 This project runs against local processes on your own machine only. The
 techniques it illustrates are for learning how attacks and defenses work. Do not
-attempt to intercept, read, or modify traffic on any network or device you do
-not own or have explicit permission to test.
+attempt to intercept, read, or modify traffic on any network or device you do not
+own or have explicit permission to test.
